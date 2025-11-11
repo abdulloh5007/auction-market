@@ -22,14 +22,19 @@ export default function ProfilePage() {
     if (!address) return
     try {
       setLoading(true)
-      const [b, p] = await Promise.all([
-        fetchTonBalance(address, 'testnet'),
-        fetchTonPrice(),
-      ])
-      setBalanceTon(b)
-      setPrice(p)
+      
+      // Используем наш API для получения цены TON
+      const priceResponse = await fetch('/api/ton-price')
+      const priceData = await priceResponse.json()
+      
+      // Получаем баланс (этот API уже существует)
+      const balanceResponse = await fetch(`/api/balance?address=${address}&network=testnet`)
+      const balanceData = await balanceResponse.json()
+      
+      setPrice(priceData.price)
+      setBalanceTon(balanceData.balance)
     } catch (e) {
-      // noop
+      console.error('Error loading profile data:', e)
     } finally {
       setLoading(false)
     }

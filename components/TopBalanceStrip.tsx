@@ -72,30 +72,32 @@ async function fetchTonBalance(walletAddress: string, isTestnet = true): Promise
   }
 }
 
-// Функция для получения цены TON
+// Функция для получения цены TON через наш API
 async function fetchTonPrice(): Promise<number> {
   try {
-    const response = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=the-open-network&vs_currencies=usd')
+    const response = await fetch('/api/ton-price')
     const data = await response.json()
-    return data['the-open-network']?.usd || 0
+    return data.price || 0
   } catch (error) {
-    console.error('Error fetching TON price:', error)
-    return 0
+    console.error('Error fetching TON price from API:', error)
+    return 2.5 // fallback значение
   }
 }
 
 // Функция для получения цены UzsCoin
 async function fetchUzsPrice(): Promise<number> {
   try {
-    // Замените на реальный API endpoint для получения цены UzsCoin
-    // Например, если токен торгуется на DEX, можно использовать их API
-    // Пока возвращаем фиксированную цену как пример
-    const response = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=uzscoin&vs_currencies=usd')
+    // Получаем курс USD/UZS через наш API
+    const response = await fetch('/api/usd-to-uzs')
     const data = await response.json()
-    return data['uzscoin']?.usd || 0
+    const usdToUzs = data.rate || 12500
+    
+    // Для UzsCoin предполагаем стабильную цену 1 UZS = 1/usdToUzs USD
+    // Это примерная логика - замените на реальную цену токена если доступна
+    return 1 / usdToUzs
   } catch (error) {
     console.error('Error fetching UZS price:', error)
-    return 0
+    return 0.00008 // fallback значение (~1/12500)
   }
 }
 
@@ -114,7 +116,7 @@ export default function UzsTonBalances() {
     if (balance === null) return '—'
     if (balance === 0) return '0.00'
 
-    if (balance < 0.001) return balance.toFixed(6)
+    if (balance < 0.001) return balance.toFixed(9)
     if (balance < 1) return balance.toFixed(4)
 
     return new Intl.NumberFormat('en-US', {
@@ -175,12 +177,12 @@ export default function UzsTonBalances() {
   )
 
   const displayUzsPrice = useMemo(() =>
-    uzsPrice !== null ? `${formatBalance(uzsPrice, 3)}` : '—',
+    uzsPrice !== null ? `${formatBalance(uzsPrice, 2)}` : '—',
     [uzsPrice]
   )
 
   const displayTonPrice = useMemo(() =>
-    tonPrice !== null ? `${formatBalance(tonPrice, 3)}` : '—',
+    tonPrice !== null ? `${formatBalance(tonPrice, 2)}` : '—',
     [tonPrice]
   )
 
