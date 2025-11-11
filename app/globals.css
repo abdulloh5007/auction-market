@@ -1,0 +1,26 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: dark;
+}
+
+body {
+  background: linear-gradient(180deg, #0b0b0c 0%, #121214 100%);
+}
+
+.card-glass {
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.08);
+  box-shadow: 0 8px 32px rgba(0,0,0,0.35);
+  backdrop-filter: blur(8px);
+}
+
+.btn-primary {
+  @apply bg-accent-500 hover:bg-accent-400 text-white font-medium px-4 py-2 rounded-lg transition-colors;
+}
+
+.btn-ghost {
+  @apply bg-white/5 hover:bg-white/10 text-white px-4 py-2 rounded-lg transition-colors border border-white/10;
+}
