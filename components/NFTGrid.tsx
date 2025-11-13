@@ -1,12 +1,13 @@
 "use client"
 
-import { nfts } from '@/data/nfts'
+import { collections } from '@/data/collections'
 import { prepareTestnetTransfer } from '@/lib/tonTransfer'
 import Image from 'next/image'
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useMemo, useState, useEffect } from 'react'
 import { useTonAddress, useTonConnectUI, useTonWallet } from '@tonconnect/ui-react'
-import { useToast } from './ToastProvider'
 import Modal from './Modal'
+import { Heart, Share2 } from 'lucide-react'
+import { useRouter } from 'next/navigation'
 
 export default function NFTGrid() {
   const [busyId, setBusyId] = useState<string | null>(null)
@@ -14,9 +15,28 @@ export default function NFTGrid() {
   const [tonConnectUI] = useTonConnectUI()
   const wallet = useTonWallet()
   const userFriendlyAddress = useTonAddress()
-  const toast = useToast()
   const [modalOpen, setModalOpen] = useState(false)
   const [txDetails, setTxDetails] = useState<{ from?: string; to?: string; amount?: number; nftId?: string } | null>(null)
+  const router = useRouter()
+  const [likedMap, setLikedMap] = useState<Record<string, boolean>>({})
+
+  // Defer reading localStorage to after hydration to avoid SSR/CSR mismatch
+  useEffect(() => {
+    try {
+      const raw = typeof window !== 'undefined' ? localStorage.getItem('liked_nfts') : null
+      setLikedMap(raw ? JSON.parse(raw) : {})
+    } catch {}
+  }, [])
+
+  const [erroredMap, setErroredMap] = useState<Record<string, boolean>>({})
+
+  const toggleLike = useCallback((id: string) => {
+    setLikedMap(prev => {
+      const next = { ...prev, [id]: !prev[id] }
+      try { localStorage.setItem('liked_nfts', JSON.stringify(next)) } catch {}
+      return next
+    })
+  }, [])
 
   const onBuy = useCallback(async (id: string, valueTon: number) => {
     try {
@@ -38,7 +58,7 @@ export default function NFTGrid() {
         amountTon: valueTon,
       })
       const result = await tonConnectUI.sendTransaction(tx)
-      setStatus('✅ Transaction submitted! Check your wallet for confirmation.')
+      // transaction submitted; rely on modal below for UX
 
       setTxDetails({ from: userFriendlyAddress, to, amount: valueTon, nftId: id })
 
@@ -59,29 +79,82 @@ export default function NFTGrid() {
 
   return (
     <div className="space-y-3">
-      <div className="text-white/80">Mock NFT</div>
-      {status && <div className="text-sm text-white/70">{status}</div>}
-      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
-        {nfts.map((n) => (
-          <div key={n.id} className="card-glass p-3">
-            <div className="relative w-full h-40 rounded-lg overflow-hidden">
-              <Image src={n.src} alt={n.title} fill className="object-cover" />
-            </div>
-            <div className="mt-3 flex items-start justify-between gap-3">
-              <div>
-                <div className="font-medium">{n.title}</div>
-                <div className="text-sm text-white/60">{n.description}</div>
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
+        {collections.flatMap(c => c.nfts.map(n => ({
+          id: `${c.collection.id}-${n.token_id}`,
+          src: n.image_url,
+          title: n.name,
+          description: n.metadata.description,
+          value: (c.stats.average_sale_price_ton || c.stats.floor_price_ton)
+        }))).map((n) => (
+          <div
+            key={n.id}
+            className="group relative overflow-hidden rounded-2xl card-glass transition-all duration-300 hover:shadow-glass"
+          >
+            {/* Image area */}
+            <div className="relative w-full h-56 overflow-hidden cursor-pointer" onClick={() => router.push(`/nft/${n.id}`)}>
+              <Image
+                src={erroredMap[n.id] ? `https://placehold.co/1200x800/png?text=${encodeURIComponent(n.title)}` : n.src}
+                alt={n.title}
+                fill
+                className="object-cover transition-transform duration-500 group-hover:scale-[1.05]"
+                onError={() => setErroredMap(prev => ({ ...prev, [n.id]: true }))}
+                sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
+              />
+
+              {/* Gradient overlay bottom */}
+              <div className="pointer-events-none absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-black/60 to-transparent opacity-80" />
+
+              {/* Top-right action buttons */}
+              <div className="absolute top-3 right-3 flex gap-2 opacity-0 -translate-y-1 group-hover:opacity-100 group-hover:translate-y-0 transition-all duration-300">
+                <button
+                  type="button"
+                  aria-label="Like"
+                  className={`rounded-full backdrop-blur-md p-2 active:scale-95 transition-all duration-200 ${likedMap[n.id] ? 'bg-rose-500/30 text-rose-300 hover:bg-rose-500/40' : 'bg-black/40 text-white/80 hover:text-white hover:bg-black/50'}`}
+                  onClick={() => toggleLike(n.id)}
+                >
+                  <Heart className={`h-5 w-5 ${likedMap[n.id] ? 'fill-current' : ''}`} />
+                </button>
+                <button
+                  type="button"
+                  aria-label="Share"
+                  className="rounded-full bg-black/40 backdrop-blur-md p-2 text-white/80 hover:text-white hover:bg-black/50 active:scale-95 transition"
+                 onClick={async () => {
+                   if (navigator?.share) {
+                     try { await navigator.share({ title: n.title, url: typeof window !== 'undefined' ? window.location.href : undefined }) } catch {}
+                   } else if (navigator?.clipboard?.writeText) {
+                     try { await navigator.clipboard.writeText(typeof window !== 'undefined' ? window.location.href : '') } catch {}
+                   }
+                 }}
+                >
+                  <Share2 className="h-5 w-5" />
+                </button>
               </div>
-              <div className="text-accent-300 font-semibold">{n.value} TON</div>
+
+              {/* Slide-up buy bar */}
+              <div className="absolute inset-x-3 bottom-3 translate-y-6 opacity-0 group-hover:translate-y-0 group-hover:opacity-100 transition-all duration-300">
+                <button
+                  className="w-full rounded-xl bg-accent-500 text-white font-medium py-2.5 shadow-accent hover:bg-accent-400 active:scale-[0.98] transition-colors duration-200 disabled:opacity-60"
+                  disabled={busyId === n.id || !wallet}
+                  onClick={() => onBuy(n.id, n.value)}
+                >
+                  {busyId === n.id ? 'Processing...' : wallet ? 'Купить NFT' : 'Подключите кошелек'}
+                </button>
+              </div>
             </div>
-            <div className="mt-3 flex justify-end">
-              <button
-                className="btn-primary disabled:opacity-60"
-                disabled={busyId === n.id || !wallet}
-                onClick={() => onBuy(n.id, n.value)}
-              >
-                {busyId === n.id ? 'Processing...' : wallet ? 'Buy' : 'Connect wallet to buy'}
-              </button>
+
+            {/* Meta area */}
+            <div className="p-4">
+              <div className="flex items-start justify-between gap-3">
+                <div className="text-left">
+                  <div className="font-semibold tracking-tight">{n.title}</div>
+                  <div className="text-sm text-white/60 line-clamp-2">{n.description}</div>
+                </div>
+                <div className="shrink-0 text-right">
+                  <div className="text-accent-300 font-bold">{n.value} TON</div>
+                  <div className="text-xs text-white/50">~ ${Math.round(n.value * 2.5)}</div>
+                </div>
+              </div>
             </div>
           </div>
         ))}

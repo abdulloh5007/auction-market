@@ -12,8 +12,8 @@ import Header from '@/components/Header'
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
-    <html lang="en" className="dark">
-      <body className="min-h-screen bg-ink-900 text-white antialiased">
+    <html lang="en" className="dark" suppressHydrationWarning>
+      <body className="min-h-screen bg-gem-900 text-white antialiased" suppressHydrationWarning>
         <ToastProvider>
           <TonConnectProvider>
             <Header />

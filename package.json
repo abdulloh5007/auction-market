@@ -13,9 +13,11 @@
     "@ton/ton": "^16.0.0",
     "@tonconnect/ui-react": "^2.0.7",
     "axios": "^1.7.4",
+    "lucide-react": "^0.553.0",
     "next": "^16.0.1",
     "react": "18.3.1",
     "react-dom": "18.3.1",
+    "recharts": "^3.4.1",
     "tonweb": "^0.0.66"
   },
   "devDependencies": {
