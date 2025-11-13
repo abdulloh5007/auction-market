@@ -1,15 +1,18 @@
 "use client"
 
 import { collections } from '@/data/collections'
+import type { Route } from 'next'
 import { prepareTestnetTransfer } from '@/lib/tonTransfer'
+import { useToast } from '@/components/ui/ToastProvider'
 import Image from 'next/image'
 import { useCallback, useMemo, useState, useEffect } from 'react'
 import { useTonAddress, useTonConnectUI, useTonWallet } from '@tonconnect/ui-react'
-import Modal from './Modal'
 import { Heart, Share2 } from 'lucide-react'
 import { useRouter } from 'next/navigation'
+import Modal from '../ui/Modal'
 
 export default function NFTGrid() {
+  const toast = useToast()
   const [busyId, setBusyId] = useState<string | null>(null)
   const [status, setStatus] = useState<string | null>(null)
   const [tonConnectUI] = useTonConnectUI()
@@ -19,6 +22,7 @@ export default function NFTGrid() {
   const [txDetails, setTxDetails] = useState<{ from?: string; to?: string; amount?: number; nftId?: string } | null>(null)
   const router = useRouter()
   const [likedMap, setLikedMap] = useState<Record<string, boolean>>({})
+  const [mounted, setMounted] = useState(false)
 
   // Defer reading localStorage to after hydration to avoid SSR/CSR mismatch
   useEffect(() => {
@@ -26,6 +30,10 @@ export default function NFTGrid() {
       const raw = typeof window !== 'undefined' ? localStorage.getItem('liked_nfts') : null
       setLikedMap(raw ? JSON.parse(raw) : {})
     } catch {}
+  }, [])
+
+  useEffect(() => {
+    setMounted(true)
   }, [])
 
   const [erroredMap, setErroredMap] = useState<Record<string, boolean>>({})
@@ -63,9 +71,7 @@ export default function NFTGrid() {
       setTxDetails({ from: userFriendlyAddress, to, amount: valueTon, nftId: id })
 
       // Show toast bottom-left with success styling; clicking opens modal
-      toast.success('Транзакция успешно отправлена', {
-        onClick: () => setModalOpen(true),
-      })
+      toast.success('Транзакция успешно отправлена', { onClick: () => setModalOpen(true) })
     } catch (e: any) {
       if (e?.code === 'USER_REJECTS_ERROR') {
         setStatus('⚠️ Transaction rejected by user')
@@ -92,7 +98,7 @@ export default function NFTGrid() {
             className="group relative overflow-hidden rounded-2xl card-glass transition-all duration-300 hover:shadow-glass"
           >
             {/* Image area */}
-            <div className="relative w-full h-56 overflow-hidden cursor-pointer" onClick={() => router.push(`/nft/${n.id}`)}>
+            <div className="relative w-full h-56 overflow-hidden cursor-pointer" onClick={() => router.push((`/nft/${n.id}` as Route))}>
               <Image
                 src={erroredMap[n.id] ? `https://placehold.co/1200x800/png?text=${encodeURIComponent(n.title)}` : n.src}
                 alt={n.title}
@@ -110,8 +116,8 @@ export default function NFTGrid() {
                 <button
                   type="button"
                   aria-label="Like"
-                  className={`rounded-full backdrop-blur-md p-2 active:scale-95 transition-all duration-200 ${likedMap[n.id] ? 'bg-rose-500/30 text-rose-300 hover:bg-rose-500/40' : 'bg-black/40 text-white/80 hover:text-white hover:bg-black/50'}`}
-                  onClick={() => toggleLike(n.id)}
+                  className={`rounded-full backdrop-blur-md p-2 active:scale-95 transition-all duration-200 bg-black/40 hover:bg-black/50 ${likedMap[n.id] ? 'text-rose-400' : 'text-white/80 hover:text-white'}`}
+                  onClick={(e) => { e.stopPropagation(); toggleLike(n.id) }}
                 >
                   <Heart className={`h-5 w-5 ${likedMap[n.id] ? 'fill-current' : ''}`} />
                 </button>
@@ -119,11 +125,14 @@ export default function NFTGrid() {
                   type="button"
                   aria-label="Share"
                   className="rounded-full bg-black/40 backdrop-blur-md p-2 text-white/80 hover:text-white hover:bg-black/50 active:scale-95 transition"
-                 onClick={async () => {
+                 onClick={async (e) => {
+                   e.stopPropagation();
+                   const origin = typeof window !== 'undefined' ? window.location.origin : ''
+                   const url = `${origin}/nft/${n.id}`
                    if (navigator?.share) {
-                     try { await navigator.share({ title: n.title, url: typeof window !== 'undefined' ? window.location.href : undefined }) } catch {}
+                     try { await navigator.share({ title: n.title, url }) } catch {}
                    } else if (navigator?.clipboard?.writeText) {
-                     try { await navigator.clipboard.writeText(typeof window !== 'undefined' ? window.location.href : '') } catch {}
+                     try { await navigator.clipboard.writeText(url); toast.success('Ссылка скопирована') } catch {}
                    }
                  }}
                 >
@@ -135,16 +144,16 @@ export default function NFTGrid() {
               <div className="absolute inset-x-3 bottom-3 translate-y-6 opacity-0 group-hover:translate-y-0 group-hover:opacity-100 transition-all duration-300">
                 <button
                   className="w-full rounded-xl bg-accent-500 text-white font-medium py-2.5 shadow-accent hover:bg-accent-400 active:scale-[0.98] transition-colors duration-200 disabled:opacity-60"
-                  disabled={busyId === n.id || !wallet}
-                  onClick={() => onBuy(n.id, n.value)}
+                  disabled={busyId === n.id || !(mounted && !!wallet)}
+                  onClick={(e) => { e.stopPropagation(); onBuy(n.id, n.value) }}
                 >
-                  {busyId === n.id ? 'Processing...' : wallet ? 'Купить NFT' : 'Подключите кошелек'}
+                  {busyId === n.id ? 'Processing...' : (mounted && !!wallet) ? 'Купить NFT' : 'Подключите кошелек'}
                 </button>
               </div>
             </div>
 
             {/* Meta area */}
-            <div className="p-4">
+            <div className="p-4 cursor-pointer" onClick={() => router.push((`/nft/${n.id}` as Route))}>
               <div className="flex items-start justify-between gap-3">
                 <div className="text-left">
                   <div className="font-semibold tracking-tight">{n.title}</div>

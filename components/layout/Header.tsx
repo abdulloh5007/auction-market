@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import { useTonAddress, useTonConnectUI, useTonWallet } from '@tonconnect/ui-react'
-import { fetchTonBalance } from '@/lib/fetchTonBalance'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 
@@ -20,8 +19,10 @@ export default function Header() {
     if (!wallet || !userFriendlyAddress) return
     try {
       setLoadingBal(true)
-      const b = await fetchTonBalance(userFriendlyAddress, 'testnet')
-      setBalance(b)
+      const res = await fetch(`/api/balance?address=${userFriendlyAddress}&network=testnet`)
+      if (!res.ok) throw new Error('Failed to fetch balance')
+      const data = await res.json()
+      setBalance(typeof data.balance === 'number' ? data.balance : null)
       setBalErr(null)
     } catch (e: any) {
       setBalErr('Balance unavailable')

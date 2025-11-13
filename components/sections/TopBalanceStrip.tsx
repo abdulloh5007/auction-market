@@ -75,9 +75,9 @@ async function fetchTonBalance(walletAddress: string, isTestnet = true): Promise
 // Функция для получения цены TON через наш API
 async function fetchTonPrice(): Promise<number> {
   try {
-    const response = await fetch('/api/ton-price')
+    const response = await fetch('/api/ton-prices?currencies=usd')
     const data = await response.json()
-    return data.price || 0
+    return data.prices?.usd || 0
   } catch (error) {
     console.error('Error fetching TON price from API:', error)
     return 2.5 // fallback значение

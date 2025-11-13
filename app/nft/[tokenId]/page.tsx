@@ -5,13 +5,15 @@ import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { collections } from '@/data/collections'
 import { ShieldCheck, Share2, Heart, MoreHorizontal, RefreshCw, Flag, PlusCircle, Tag } from 'lucide-react'
-import Modal from '@/components/Modal'
 import { useTonAddress, useTonConnectUI, useTonWallet } from '@tonconnect/ui-react'
 import { prepareTestnetTransfer } from '@/lib/tonTransfer'
+import { useToast } from '@/components/ui/ToastProvider'
+import Modal from '@/components/ui/Modal'
 
 export default function NFTPage() {
   const { tokenId } = useParams<{ tokenId: string }>()
   const router = useRouter()
+  const toast = useToast()
 
   const [buyOpen, setBuyOpen] = useState(false)
   const [offerOpen, setOfferOpen] = useState(false)
@@ -96,10 +98,11 @@ export default function NFTPage() {
         await (navigator as any).share({ title: item?.nft?.name || 'NFT', url })
       } else if (navigator?.clipboard?.writeText) {
         await navigator.clipboard.writeText(url)
+        toast.success('Ссылка скопирована')
       }
       setMenuOpen(false)
     } catch { }
-  }, [item?.nft?.name])
+  }, [item?.nft?.name, toast])
 
   // Close 3-dots menu on outside click
   useEffect(() => {
@@ -117,7 +120,8 @@ export default function NFTPage() {
   const doRefresh = useCallback(async () => {
     setRefreshTs(Date.now())
     setMenuOpen(false)
-  }, [])
+    toast.success('Метаданные обновлены')
+  }, [toast])
 
 
 
@@ -134,6 +138,36 @@ export default function NFTPage() {
   }
 
   const { nft, collection } = item
+  const tabs = ['Details','Offers','Stats','History','Comments'] as const
+  const [activeTab, setActiveTab] = useState(0)
+  const [tabFadeKey, setTabFadeKey] = useState(0)
+  const onTab = (i: number) => { setActiveTab(i); setTabFadeKey((k) => k + 1) }
+  const tabRefs = useRef<Array<HTMLButtonElement | null>>([])
+  const [underline, setUnderline] = useState<{ left: number; width: number }>({ left: 0, width: 0 })
+
+  useEffect(() => {
+    const el = tabRefs.current[activeTab]
+    if (!el) return
+    const parent = el.parentElement?.parentElement // wrapper of all buttons
+    const parentRect = parent?.getBoundingClientRect()
+    const rect = el.getBoundingClientRect()
+    const left = parentRect ? rect.left - parentRect.left : el.offsetLeft
+    setUnderline({ left, width: rect.width })
+  }, [activeTab, tabs.length])
+
+  useEffect(() => {
+    const onResize = () => {
+      const el = tabRefs.current[activeTab]
+      if (!el) return
+      const parent = el.parentElement?.parentElement
+      const parentRect = parent?.getBoundingClientRect()
+      const rect = el.getBoundingClientRect()
+      const left = parentRect ? rect.left - parentRect.left : el.offsetLeft
+      setUnderline({ left, width: rect.width })
+    }
+    window.addEventListener('resize', onResize)
+    return () => window.removeEventListener('resize', onResize)
+  }, [activeTab])
 
 
 
@@ -242,6 +276,66 @@ export default function NFTPage() {
                 <Tag className="h-4 w-4 shrink-0" />
                 <span className="truncate">Make Offer</span>
               </button>
+            </div>
+
+            {/* Tabs */}
+            <div className="mt-6">
+              <div className="relative">
+                <div className="flex items-center gap-6 text-sm text-white/70 relative">
+                  {tabs.map((t, i) => (
+                    <button
+                      key={t}
+                      ref={(el) => { tabRefs.current[i] = el }}
+                      onClick={() => onTab(i)}
+                      className={`py-2 font-semibold transition-colors ${activeTab===i?'text-white':'hover:text-white/90'}`}
+                    >
+                      {t}
+                    </button>
+                  ))}
+                  {/* Moving underline */}
+                  <span
+                    className="pointer-events-none absolute bottom-0 h-[2px] bg-white transition-all duration-300"
+                    style={{ left: `${underline.left}px`, width: `${underline.width}px` }}
+                  />
+                </div>
+                {/* Track line */}
+                <div className="mt-1 h-px bg-white/10" />
+              </div>
+
+              <div key={tabFadeKey} className="mt-4 transition-opacity duration-300 opacity-100">
+                {activeTab===0 && (
+                  <div className="space-y-2">
+                    <div className="text-sm text-white/80">{nft.metadata.description}</div>
+                    {Array.isArray(nft.metadata.attributes) && nft.metadata.attributes.length>0 && (
+                      <div className="grid grid-cols-2 gap-2 text-sm">
+                        {nft.metadata.attributes.map((a, idx) => (
+                          <div key={idx} className="rounded-lg bg-white/5 border border-dark p-2">
+                            <div className="text-white/50 text-xs">{a.trait_type}</div>
+                            <div className="font-medium">{String(a.value)}</div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+                {activeTab===1 && (
+                  <div className="text-sm text-white/70">No offers yet.</div>
+                )}
+                {activeTab===2 && (
+                  <div className="grid grid-cols-2 gap-3 text-sm">
+                    <div><div className="text-white/50">Floor</div><div className="font-semibold">{item.stats.floor_price_ton} TON</div></div>
+                    <div><div className="text-white/50">Avg Sale</div><div className="font-semibold">{item.stats.average_sale_price_ton} TON</div></div>
+                    <div><div className="text-white/50">Owners</div><div className="font-semibold">{item.stats.num_owners}</div></div>
+                    <div><div className="text-white/50">24h Volume</div><div className="font-semibold">{item.stats.volume_24h_ton} TON</div></div>
+                  </div>
+                )}
+                {activeTab===3 && (
+                  <div className="text-sm text-white/70">No history.</div>
+                )}
+                {activeTab===4 && (
+                  <div className="text-sm text-white/70">No comments.</div>
+                )}
+              </div>
             </div>
           </div>
         </div>

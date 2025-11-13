@@ -5,7 +5,7 @@ import React, { useEffect, useRef, useState } from 'react'
 export default function Modal({ open, onClose, title, children, drawerOnMobile = true }: { open: boolean; onClose: () => void; title?: string; children?: React.ReactNode; drawerOnMobile?: boolean }) {
   const [show, setShow] = useState(open)
   const timeoutRef = useRef<number | null>(null)
-  const DURATION = 260 // ms, keep in sync with classes
+  const DURATION = 300 // ms, keep in sync with classes
   const [entered, setEntered] = useState(open)
   const [isMobile, setIsMobile] = useState(false)
   const [dragging, setDragging] = useState(false)
@@ -21,8 +21,11 @@ export default function Modal({ open, onClose, title, children, drawerOnMobile =
       // mount immediately on open
       setShow(true)
       if (timeoutRef.current) window.clearTimeout(timeoutRef.current)
-      // ensure enter transition runs on mount
-      requestAnimationFrame(() => setEntered(true))
+      // reset enter state and ensure enter transition runs on next frames
+      setEntered(false)
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => setEntered(true))
+      })
     } else {
       // delay unmount for fade-out
       setEntered(false)
@@ -106,18 +109,21 @@ export default function Modal({ open, onClose, title, children, drawerOnMobile =
     <div className={`fixed inset-0 z-50 ${open ? 'pointer-events-auto' : 'pointer-events-none'}`}>
       {/* Backdrop */}
       <div
-        className={`absolute inset-0 bg-black/60 backdrop-blur-sm transition-opacity duration-300 ease-out ${entered ? 'opacity-100' : 'opacity-0'}`}
+        className={`absolute inset-0 bg-black/60 backdrop-blur-sm transition-opacity duration-300 ease-in-out ${entered ? 'opacity-100' : 'opacity-0'}`}
         onClick={onClose}
       />
       {/* Dialog */}
       <div
         className={
-          `absolute transition-all ${dragging ? 'duration-0' : 'duration-300'} ease-out card-glass border border-white/10 p-5 will-change-transform
+          `absolute transition-all ${dragging ? 'duration-0' : 'duration-300'} ease-in-out card-glass border border-white/10 p-5 will-change-transform
           ${entered ? 'opacity-100 md:scale-100' : 'opacity-0 md:scale-95'}
           ${drawerOnMobile ? 'bottom-0 left-0 right-0 rounded-t-2xl md:rounded-2xl md:left-1/2 md:top-1/2 md:bottom-auto md:right-auto md:-translate-x-1/2 md:-translate-y-1/2' : 'left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-2xl'}
           w-full md:w-[92vw] md:max-w-lg`
         }
-        style={drawerOnMobile && isMobile ? { transform: `translateY(${(entered ? 0 : 12) + dragY}px)` } as React.CSSProperties : undefined}
+        style={drawerOnMobile && isMobile ? {
+          // Slide from bottom on mobile: when not entered, position off-screen (window height)
+          transform: `translateY(${(entered ? 0 : (typeof window !== 'undefined' ? window.innerHeight : 0)) + dragY}px)`
+        } as React.CSSProperties : undefined}
         onTouchStart={onTouchStart}
         onTouchMove={onTouchMove}
         onTouchEnd={onTouchEnd}

@@ -2,17 +2,18 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { useTonAddress, useTonWallet } from '@tonconnect/ui-react'
-import { fetchTonBalance } from '@/lib/fetchTonBalance'
-import { fetchTonPrices } from '@/lib/fetchTonPrices'
-import { fetchUsdToUzs } from '@/lib/fetchUsdToUzs'
 
 export default function MainBalanceCard() {
-  const wallet = useTonWallet()
-  const address = useTonAddress()
+  const [price, setPrice] = useState<number | null>(null)
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
   const [expanded, setExpanded] = useState(false)
   const [rates, setRates] = useState<Record<'USD'|'EUR'|'RUB'|'UZS', number>>({} as any)
-  const [tonBalance, setTonBalance] = useState<number | null>(null)
   const [selectedCurrency, setSelectedCurrency] = useState<'USD' | 'EUR' | 'RUB' | 'UZS'>('USD')
+  const [mounted, setMounted] = useState(false)
+  const [tonBalance, setTonBalance] = useState<number | null>(null)
+  const wallet = useTonWallet()
+  const address = useTonAddress()
 
   const mainAmount = useMemo(() => {
     if (tonBalance === null) return null
@@ -37,28 +38,53 @@ export default function MainBalanceCard() {
   }
 
   useEffect(() => {
-    let t: any
+    setMounted(true)
+  }, [])
+
+  useEffect(() => {
+    let timer: any
     const load = async () => {
       try {
-        const [pricesBase, usdToUzs, b] = await Promise.all([
-          fetchTonPrices(['usd','eur','rub']),
-          fetchUsdToUzs(),
-          wallet && address ? fetchTonBalance(address, 'testnet') : Promise.resolve(null)
-        ])
-        const prices = {
-          USD: pricesBase.usd ?? 0,
-          EUR: pricesBase.eur ?? 0,
-          RUB: pricesBase.rub ?? 0,
-          UZS: (pricesBase.usd ?? 0) * usdToUzs,
+        setLoading(true)
+        // Prices
+        const response = await fetch('/api/ton-prices?currencies=usd,eur,rub,uzs')
+        const data = await response.json()
+        const prices = data.prices || {}
+        const normalized = {
+          USD: prices.usd ?? 0,
+          EUR: prices.eur ?? 0,
+          RUB: prices.rub ?? 0,
+          UZS: prices.uzs ?? (prices.usd ? prices.usd * 32000 : 0),
         }
-        setRates(prices)
-        setTonBalance(b as number | null)
-      } catch {}
+        setRates(normalized as any)
+        setPrice(normalized.USD)
+
+        // Testnet TON balance
+        if (wallet && address) {
+          try {
+            const balRes = await fetch(`/api/balance?address=${address}&chain=testnet`)
+            const balJson = await balRes.json()
+            setTonBalance(typeof balJson.balance === 'number' ? balJson.balance : 0)
+          } catch {
+            setTonBalance(0)
+          }
+        } else {
+          setTonBalance(null)
+        }
+
+        setError(null)
+      } catch (e: any) {
+        setError(e?.message || 'Failed to fetch TON price')
+      } finally {
+        setLoading(false)
+      }
     }
     load()
-    t = setInterval(load, 60000)
-    return () => clearInterval(t)
+    timer = setInterval(load, 45000)
+    return () => clearInterval(timer)
   }, [wallet, address])
+
+  //
 
   return (
     <div className="mx-auto w-full">
@@ -67,7 +93,7 @@ export default function MainBalanceCard() {
         {/* Главный баланс */}
         <div className="flex items-center justify-center gap-2">
           <div className="text-3xl sm:text-4xl font-extrabold tracking-tight tabular-nums drop-shadow">
-            {mainAmount !== null ? format(mainAmount, selectedCurrency) : wallet ? '—' : 'Connect wallet'}
+            {!mounted ? '—' : (mainAmount !== null ? format(mainAmount, selectedCurrency) : '—')}
           </div>
           <button
             onClick={() => setExpanded(v => !v)}
@@ -90,7 +116,7 @@ export default function MainBalanceCard() {
               className={`w-full flex justify-between px-4 py-3 transition-all hover:bg-white/10 active:scale-95 rounded-t-xl ${selectedCurrency==='USD'?'bg-white/20':''}`}
             >
               <span>USD</span>
-              <span>{tonBalance !== null ? format(tonBalance*rates['USD'], 'USD') : '—'}</span>
+              <span>{mounted && tonBalance !== null && rates['USD'] ? format(tonBalance*rates['USD'], 'USD') : '—'}</span>
             </button>
 
             {/* EUR */}
@@ -99,7 +125,7 @@ export default function MainBalanceCard() {
               className={`w-full flex justify-between px-4 py-3 transition-all hover:bg-white/10 active:scale-95 ${selectedCurrency==='EUR'?'bg-white/20':''}`}
             >
               <span>EUR</span>
-              <span>{tonBalance !== null ? format(tonBalance*rates['EUR'], 'EUR') : '—'}</span>
+              <span>{mounted && tonBalance !== null && rates['EUR'] ? format(tonBalance*rates['EUR'], 'EUR') : '—'}</span>
             </button>
 
             {/* RUB */}
@@ -108,7 +134,7 @@ export default function MainBalanceCard() {
               className={`w-full flex justify-between px-4 py-3 transition-all hover:bg-white/10 active:scale-95 ${selectedCurrency==='RUB'?'bg-white/20':''}`}
             >
               <span>RUB</span>
-              <span>{tonBalance !== null ? format(tonBalance*rates['RUB']!, 'RUB') : '—'}</span>
+              <span>{mounted && tonBalance !== null && rates['RUB'] ? format(tonBalance*rates['RUB']!, 'RUB') : '—'}</span>
             </button>
 
             {/* UZS */}
@@ -117,7 +143,7 @@ export default function MainBalanceCard() {
               className={`w-full flex justify-between px-4 py-3 transition-all hover:bg-white/10 active:scale-95 rounded-b-xl ${selectedCurrency==='UZS'?'bg-white/20':''}`}
             >
               <span>UZS</span>
-              <span>{tonBalance !== null && rates['UZS'] ? format(tonBalance*rates['UZS']!, 'UZS') : '—'}</span>
+              <span>{mounted && tonBalance !== null && rates['UZS'] ? format(tonBalance*rates['UZS']!, 'UZS') : '—'}</span>
             </button>
           </div>
         </div>

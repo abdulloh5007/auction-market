@@ -21,14 +21,15 @@ export default function ProfilePage() {
       setLoading(true)
       
       // Используем наш API для получения цены TON
-      const priceResponse = await fetch('/api/ton-price')
+      const priceResponse = await fetch('/api/ton-prices?currencies=usd')
       const priceData = await priceResponse.json()
+      const tonPrice = priceData.prices?.usd || 0
       
       // Получаем баланс (этот API уже существует)
       const balanceResponse = await fetch(`/api/balance?address=${address}&network=testnet`)
       const balanceData = await balanceResponse.json()
       
-      setPrice(priceData.price)
+      setPrice(tonPrice)
       setBalanceTon(balanceData.balance)
     } catch (e) {
       console.error('Error loading profile data:', e)

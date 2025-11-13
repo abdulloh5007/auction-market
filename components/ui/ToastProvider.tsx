@@ -29,6 +29,7 @@ export function useToast() {
 export default function ToastProvider({ children }: { children: React.ReactNode }) {
   const [toasts, setToasts] = useState<ToastInternal[]>([])
   const timers = useRef<Map<string, any>>(new Map())
+  const [closing, setClosing] = useState<Record<string, boolean>>({})
 
   const remove = useCallback((id: string) => {
     setToasts((prev) => prev.filter((t) => t.id !== id))
@@ -40,8 +41,11 @@ export default function ToastProvider({ children }: { children: React.ReactNode 
   }, [])
 
   const enqueueAutoHide = useCallback((t: ToastInternal) => {
-    const duration = t.duration ?? 10000
-    const tm = setTimeout(() => remove(t.id), duration)
+    // Default durations:
+    // - Simple toast (no onClick): 5s
+    // - Clickable toast (with onClick): 10s
+    const duration = t.duration ?? (t.onClick ? 10000 : 5000)
+    const tm = setTimeout(() => close(t.id), duration)
     timers.current.set(t.id, tm)
   }, [remove])
 
@@ -57,7 +61,29 @@ export default function ToastProvider({ children }: { children: React.ReactNode 
     return show({ message, type: 'success', ...opts })
   }, [show])
 
-  const ctxValue = useMemo(() => ({ show, success, remove }), [remove, show, success])
+  const close = useCallback((id: string) => {
+    // Start exit animation
+    setClosing((prev) => ({ ...prev, [id]: true }))
+    // Clear existing auto-hide timer (if any)
+    const tm = timers.current.get(id)
+    if (tm) {
+      clearTimeout(tm)
+      timers.current.delete(id)
+    }
+    // After animation delay, remove
+    const exitMs = 250
+    const exitTimer = setTimeout(() => {
+      setClosing((prev) => {
+        const n = { ...prev }
+        delete n[id]
+        return n
+      })
+      remove(id)
+    }, exitMs)
+    timers.current.set(id, exitTimer)
+  }, [remove])
+
+  const ctxValue = useMemo(() => ({ show, success, remove: close }), [close, show, success])
 
   return (
     <ToastContext.Provider value={ctxValue}>
@@ -65,14 +91,14 @@ export default function ToastProvider({ children }: { children: React.ReactNode 
       {/* Toast viewport */}
       <div className="fixed left-4 bottom-4 z-50 space-y-3">
         {toasts.map((t) => (
-          <ToastItem key={t.id} toast={t} onClose={() => remove(t.id)} />
+          <ToastItem key={t.id} toast={t} closing={!!closing[t.id]} onClose={() => close(t.id)} />
         ))}
       </div>
     </ToastContext.Provider>
   )
 }
 
-function ToastItem({ toast, onClose }: { toast: ToastInternal; onClose: () => void }) {
+function ToastItem({ toast, closing, onClose }: { toast: ToastInternal; closing?: boolean; onClose: () => void }) {
   const [enter, setEnter] = useState(false)
   const pauseRef = useRef(false)
 
@@ -96,7 +122,7 @@ function ToastItem({ toast, onClose }: { toast: ToastInternal; onClose: () => vo
       onMouseLeave={() => (pauseRef.current = false)}
       className={`group flex items-center gap-3 rounded-lg px-4 py-3 shadow-lg backdrop-blur-md transition-all duration-300 card-glass border border-white/10 ${
         toast.type === 'success' ? 'bg-emerald-500/15 text-emerald-100' : toast.type === 'error' ? 'bg-red-500/15 text-red-100' : 'bg-white/10 text-white'
-      } ${enter ? 'opacity-100 translate-x-0' : 'opacity-0 -translate-x-5'} ${toast.onClick ? 'cursor-pointer' : ''}`}
+      } ${closing ? 'opacity-0 -translate-x-5' : (enter ? 'opacity-100 translate-x-0' : 'opacity-0 -translate-x-5')} ${toast.onClick ? 'cursor-pointer' : ''}`}
       style={{ minWidth: 260 }}
     >
       {/* Check icon */}
