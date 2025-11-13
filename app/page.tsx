@@ -1,5 +1,5 @@
-import Header from '@/components/Header'
-import NFTGrid from '@/components/NFTGrid'
+import Header from '@/components/layout/Header'
+import NFTGrid from '@/components/grids/NFTGrid'
 
 export default function Page() {
   return (

@@ -2,11 +2,8 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTonAddress, useTonConnectUI, useTonWallet } from '@tonconnect/ui-react'
-import { fetchTonBalance } from '@/lib/fetchTonBalance'
-import { fetchTonPrice } from '@/lib/fetchTonPrice'
-
-import MainBalanceCard from '@/components/MainBalanceCard'
-import TopBalanceStrip from '@/components/TopBalanceStrip'
+import MainBalanceCard from '@/components/cards/MainBalanceCard'
+import TopBalanceStrip from '@/components/sections/TopBalanceStrip'
 
 export default function ProfilePage() {
   const wallet = useTonWallet()

@@ -6,9 +6,9 @@ export const metadata = {
   description: 'TON wallet integration demo (testnet) with dark UI',
 }
 
-import TonConnectProvider from '@/components/TonConnectProvider'
-import ToastProvider from '@/components/ToastProvider'
-import Header from '@/components/Header'
+import TonConnectProvider from '@/components/providers/TonConnectProvider'
+import ToastProvider from '@/components/ui/ToastProvider'
+import Header from '@/components/layout/Header'
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
